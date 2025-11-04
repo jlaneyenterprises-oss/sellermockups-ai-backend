@@ -1,79 +1,96 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <title>AI Mockup Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { margin: 0; font-family: Inter, sans-serif; background: #111; color: #fff; padding: 2rem; }
-    .container { max-width: 1000px; margin: 0 auto; background: #111; padding: 2rem; border-radius: 16px; }
-    h2 { text-align: center; font-size: 2rem; margin-bottom: 0.5rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin: 1rem 0; }
-    input, select, button { padding: 0.75rem; border-radius: 8px; width: 100%; }
-    button { background: linear-gradient(90deg, #7c3aed, #3b82f6); color: white; border: none; font-weight: 600; cursor: pointer; }
-    .mockup { background: #1a1a1a; padding: 1rem; border-radius: 12px; text-align: center; margin-top: 1rem; }
-    .mockup img { width: 100%; height: 180px; object-fit: cover; border-radius: 8px; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#111; color:#fff; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    p { margin: 0 0 16px; opacity: .85; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:12px 0; }
+    input[type="file"] { background:#1a1a1a; padding:10px; border-radius:8px; }
+    select, button { padding:10px 14px; border-radius:8px; border:0; background:#2a2a2a; color:#fff; }
+    button { cursor:pointer; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:12px; margin-top:16px; }
+    .grid img { width:100%; height:180px; object-fit:cover; border-radius:8px; background:#222; }
+    .bar { padding:12px; background:#222; color:#0f0; border-radius:8px; margin-bottom:12px; }
+    .err { color:#f66; margin-top:8px; }
   </style>
 </head>
 <body>
-  <div class="container" id="app"></div>
+  <div class="wrap">
+    <div class="bar">App loaded — if nothing happens on Generate, we’ll check the console.</div>
 
-  <script type="module">
-    import React, { useState } from "https://cdn.skypack.dev/react";
-    import { createRoot } from "https://cdn.skypack.dev/react-dom/client";
-    import { motion } from "https://cdn.skypack.dev/framer-motion";
+    <h1>AI Mockup Generator</h1>
+    <p>Upload your design, pick a product, and generate mockups.</p>
 
+    <div class="row">
+      <input id="file" type="file" accept="image/*" />
+      <select id="product">
+        <option value="ornament">Ornament</option>
+        <option value="mug">Mug</option>
+        <option value="pillow">Pillow</option>
+      </select>
+      <button id="go">Generate Mockups</button>
+      <span id="status" style="opacity:.7;"></span>
+    </div>
+
+    <div id="error" class="err"></div>
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <script>
     const API_URL = "/api/generate-mockups";
+    const $ = (id) => document.getElementById(id);
+    const fileEl = $("file");
+    const prodEl = $("product");
+    const goEl = $("go");
+    const gridEl = $("grid");
+    const errEl = $("error");
+    const statusEl = $("status");
 
-    const App = () => {
-      const [file, setFile] = useState(null);
-      const [product, setProduct] = useState("ornament");
-      const [count, setCount] = useState(5);
-      const [loading, setLoading] = useState(false);
-      const [mockups, setMockups] = useState([]);
-      const [error, setError] = useState("");
+    async function generate() {
+      errEl.textContent = "";
+      gridEl.innerHTML = "";
+      const file = fileEl.files && fileEl.files[0];
+      if (!file) { errEl.textContent = "Please upload a design file."; return; }
 
-      const generate = async () => {
-        if (!file) return setError("Upload design");
-        setLoading(true); setError(""); setMockups([]);
+      goEl.disabled = true;
+      statusEl.textContent = "Generating…";
+
+      try {
         const form = new FormData();
-        form.append("design", file);
-        form.append("product", product);
-        form.append("count", count);
+        form.append("image", file);
+        form.append("product", prodEl.value);
+
         const res = await fetch(API_URL, { method: "POST", body: form });
         const data = await res.json();
-        setLoading(false);
-        if (!res.ok) return setError(data.error);
-        setMockups(data.mockups);
-      };
+        if (!res.ok) throw new Error(data?.error || "Generation failed");
 
-      return (
-        <>
-          <h2>AI Mockup Generator</h2>
-          <div class="grid">
-            <input type="file" accept="image/*" onChange={e => setFile(e.target.files[0])} />
-            <select value={product} onChange={e => setProduct(e.target.value)}>
-              <option>ornament</option><option>t-shirt</option><option>mug</option>
-            </select>
-            <input type="number" min="1" max="10" value={count} onChange={e => setCount(+e.target.value)} />
-          </div>
-          <button onClick={generate} disabled={loading}>
-            {loading ? "Generating..." : `Generate ${count}`}
-          </button>
-          {error && <p style={{color:"red",textAlign:"center"}}>{error}</p>}
-          <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:"1rem", marginTop:"2rem"}}>
-            {mockups.map((m,i) => (
-              <motion.div key={i} whileHover={{scale:1.05}} class="mockup">
-                <img src={m.url} />
-                <p>{m.prompt}</p>
-                <a href={m.url} download style={{color:"#10b981",display:"block",marginTop:"0.5rem"}}>Download</a>
-              </motion.div>
-            ))}
-          </div>
-        </>
-      );
-    };
+        // Accept either an array of URLs or {mockups:[...]}
+        const urls = Array.isArray(data) ? data : (data.mockups || []);
+        if (!urls.length) {
+          errEl.textContent = "No mockups returned.";
+        } else {
+          gridEl.innerHTML = "";
+          urls.forEach((url) => {
+            const img = document.createElement("img");
+            img.src = url;
+            gridEl.appendChild(img);
+          });
+        }
+      } catch (e) {
+        errEl.textContent = e.message || String(e);
+        console.error(e);
+      } finally {
+        goEl.disabled = false;
+        statusEl.textContent = "";
+      }
+    }
 
-    createRoot(document.getElementById("app")).render(<App />);
+    goEl.addEventListener("click", generate);
   </script>
 </body>
 </html>
