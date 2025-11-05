@@ -1,13 +1,8 @@
 {
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Content-Security-Policy",
-          "value": "frame-ancestors https://*.framer.app https://*.framer.website https://sellermockups.com https://www.sellermockups.com;"
-        }
-      ]
+  "functions": {
+    "api/*.js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 60
     }
-  ]
+  }
 }
