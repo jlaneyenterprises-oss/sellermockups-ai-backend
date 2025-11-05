@@ -1,10 +1,10 @@
 // api/generate-one.js
-import vertexai from "@google-cloud/vertexai";          // <— default import
+import vertexai from "@google-cloud/vertexai"; // ✅ correct import for Vercel
 import fs from "node:fs";
-const { ImageGenerationModel } = vertexai;              // destructure
+const { ImageGenerationModel } = vertexai;
 
 export default async function handler(req, res) {
-  // CORS for browser testers (Hoppscotch, your test page, etc.)
+  // --- Enable CORS for testing ---
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -20,21 +20,21 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing imageUrl or productType" });
     }
 
-    // Use your Vercel env vars
+    // --- Your correct environment variable names ---
     const projectId = process.env.GOOGLE_PROJECT_ID;
-    const saJson    = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (!projectId || !saJson) {
       return res.status(500).json({
         error: "Missing GOOGLE_PROJECT_ID or GOOGLE_SERVICE_ACCOUNT_JSON",
       });
     }
 
-    // Write the service account JSON to a temp file so ADC works on Vercel
+    // --- Write service account key to temp file for Vertex auth ---
     const keyPath = "/tmp/gcp-key.json";
     fs.writeFileSync(keyPath, saJson, "utf8");
     process.env.GOOGLE_APPLICATION_CREDENTIALS = keyPath;
 
-    // Imagen 3 model
+    // --- Create Imagen 3 model ---
     const model = new ImageGenerationModel({
       model: "imagen-3.0",
       project: projectId,
@@ -58,7 +58,9 @@ Centered, proportional, no warping, high quality presentation image.`;
     }
 
     const b64 = img.b64Json ?? img.bytesBase64Encoded;
-    return res.status(200).json({ ok: true, dataUri: `data:image/png;base64,${b64}` });
+    return res
+      .status(200)
+      .json({ ok: true, dataUri: `data:image/png;base64,${b64}` });
   } catch (err) {
     console.error("❌ Generation failed:", err);
     return res.status(500).json({ error: String(err?.message || err) });
