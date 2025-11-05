@@ -1,8 +1,10 @@
-import { ImageGenerationModel } from "@google-cloud/vertexai";
+// api/generate-one.js
+import vertexai from "@google-cloud/vertexai";          // <— default import
 import fs from "node:fs";
+const { ImageGenerationModel } = vertexai;              // destructure
 
 export default async function handler(req, res) {
-  // CORS for browser testers
+  // CORS for browser testers (Hoppscotch, your test page, etc.)
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -18,21 +20,21 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing imageUrl or productType" });
     }
 
-    // Read YOUR env var names from Vercel
+    // Use your Vercel env vars
     const projectId = process.env.GOOGLE_PROJECT_ID;
-    const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    const saJson    = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (!projectId || !saJson) {
       return res.status(500).json({
         error: "Missing GOOGLE_PROJECT_ID or GOOGLE_SERVICE_ACCOUNT_JSON",
       });
     }
 
-    // Write the SA JSON to a temp file so Google auth works on Vercel
+    // Write the service account JSON to a temp file so ADC works on Vercel
     const keyPath = "/tmp/gcp-key.json";
     fs.writeFileSync(keyPath, saJson, "utf8");
     process.env.GOOGLE_APPLICATION_CREDENTIALS = keyPath;
 
-    // Create Imagen 3 model
+    // Imagen 3 model
     const model = new ImageGenerationModel({
       model: "imagen-3.0",
       project: projectId,
