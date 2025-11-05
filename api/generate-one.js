@@ -1,7 +1,6 @@
 // api/generate-one.js
-import vertexai from "@google-cloud/vertexai"; // ✅ correct import for Vercel
+import { VertexAI } from "@google-cloud/vertexai";
 import fs from "node:fs";
-const { ImageGenerationModel } = vertexai;
 
 export default async function handler(req, res) {
   // --- Enable CORS for testing ---
@@ -20,7 +19,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing imageUrl or productType" });
     }
 
-    // --- Your correct environment variable names ---
+    // --- Use your Vercel env vars ---
     const projectId = process.env.GOOGLE_PROJECT_ID;
     const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (!projectId || !saJson) {
@@ -29,16 +28,17 @@ export default async function handler(req, res) {
       });
     }
 
-    // --- Write service account key to temp file for Vertex auth ---
+    // --- Auth setup ---
     const keyPath = "/tmp/gcp-key.json";
     fs.writeFileSync(keyPath, saJson, "utf8");
     process.env.GOOGLE_APPLICATION_CREDENTIALS = keyPath;
 
-    // --- Create Imagen 3 model ---
-    const model = new ImageGenerationModel({
+    // --- Create VertexAI client ---
+    const vertexAI = new VertexAI({ project: projectId, location: "us-central1" });
+
+    // ✅ Use vertexAI.preview.getGenerativeModel (correct constructor)
+    const model = vertexAI.preview.getGenerativeModel({
       model: "imagen-3.0",
-      project: projectId,
-      location: "us-central1",
     });
 
     const prompt = `Ecommerce product mockup of a ${productType}.
@@ -46,6 +46,7 @@ Clean, well-lit studio look, soft shadows, realistic materials.
 Overlay the customer's uploaded design from this URL onto the product surface: ${imageUrl}.
 Centered, proportional, no warping, high quality presentation image.`;
 
+    console.log("🎨 Calling Imagen 3...");
     const result = await model.generateImages({
       prompt,
       numberOfImages: 1,
@@ -58,9 +59,7 @@ Centered, proportional, no warping, high quality presentation image.`;
     }
 
     const b64 = img.b64Json ?? img.bytesBase64Encoded;
-    return res
-      .status(200)
-      .json({ ok: true, dataUri: `data:image/png;base64,${b64}` });
+    return res.status(200).json({ ok: true, dataUri: `data:image/png;base64,${b64}` });
   } catch (err) {
     console.error("❌ Generation failed:", err);
     return res.status(500).json({ error: String(err?.message || err) });
