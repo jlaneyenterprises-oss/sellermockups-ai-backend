@@ -1,54 +1,45 @@
-// api/generate-one.js
-import { getVertexModel } from "../lib/vertex.js";
+import { ImageGenerationModel } from "@google-cloud/vertexai";
 
 export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Use POST" });
+  }
+
   try {
-    // Ensure POST with JSON
-    if (req.method !== "POST") {
-      return res.status(405).json({ ok: false, error: "Use POST" });
+    const { imageUrl, productType } = req.body || {};
+    if (!imageUrl || !productType) {
+      return res.status(400).json({ error: "Missing imageUrl or productType" });
     }
 
-    let body = req.body;
-    // Some runtimes send string; normalize to object
-    if (typeof body === "string") {
-      try { body = JSON.parse(body); } catch {}
-    }
+    const model = new ImageGenerationModel({
+      model: "imagen-3.0",
+      project: process.env.GCP_PROJECT_ID,
+      location: "us-central1",
+    });
 
-    const { imageUrl, productType = "ornament" } = body || {};
-    if (!imageUrl) {
-      return res.status(400).json({ ok: false, error: "Missing imageUrl" });
-    }
-
-    const scenePrompt =
-      productType === "ornament"
-        ? "photorealistic Christmas tree with soft bokeh lighting, shallow depth of field"
-        : "natural daylight product photography, soft shadows, realistic textures";
-
-    const model = getVertexModel("imagen-3.0");
-
-    const prompt = `
-      Generate a 1:1 product mockup.
-      Product type: ${productType}.
-      Use the uploaded design image: ${imageUrl}.
-      Scene: ${scenePrompt}.
-      Clean composition, natural shadows, no added text or watermarks.
-    `;
+    const prompt = `Ecommerce product mockup of a ${productType}. 
+    Clean, well-lit studio look, soft shadows, realistic materials. 
+    Overlay the customer's uploaded design from this URL onto the product surface: ${imageUrl}. 
+    Centered, proportional, no warping, high quality presentation image.`;
 
     const result = await model.generateImages({
       prompt,
       numberOfImages: 1,
-      aspectRatio: "1:1",
-      negativePrompt: "distorted, blurry, unrealistic, watermark, text"
+      size: "1024x1024",
     });
 
-    const imageBase64 = result.images?.[0]?.b64Json;
-    if (!imageBase64) {
-      return res.status(500).json({ ok: false, error: "No image returned" });
+    const img = result.images?.[0];
+    if (!img?.b64Json && !img?.bytesBase64Encoded) {
+      return res.status(500).json({ error: "No image returned from Vertex AI" });
     }
 
-    res.status(200).json({ ok: true, imageBase64, prompt });
+    const b64 = img.b64Json ?? img.bytesBase64Encoded;
+    return res.status(200).json({
+      ok: true,
+      dataUri: `data:image/png;base64,${b64}`,
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ ok: false, error: err.message });
+    return res.status(500).json({ error: String(err?.message || err) });
   }
 }
