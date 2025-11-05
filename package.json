@@ -2,12 +2,8 @@
   "name": "sellermockups-ai-backend",
   "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "start": "node api/ping.js"
-  },
   "dependencies": {
-    "@google/generative-ai": "^0.17.0"
+    "@google/genai": "^0.11.0"
   },
   "engines": {
     "node": ">=20.x"
