@@ -1,12 +1,23 @@
-export default async function handler(req, res) {
+// /api/debug.js  — CommonJS, works with package.json as shown
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+module.exports = async (req, res) => {
   try {
+    const apiKey = process.env.GOOGLE_API_KEY || "";
+    const ai = new GoogleGenerativeAI(apiKey);
+
+    // quick sanity checks
+    const hasKey = Boolean(apiKey);
+    const hasModels = !!ai && !!ai.getGenerativeModel; // method exists on client
+
     res.status(200).json({
       ok: true,
-      route: "/api/debug",
-      envHasKey: Boolean(process.env.GOOGLE_API_KEY),
-      node: process.version
+      package: "@google/generative-ai",
+      envHasKey: hasKey,
+      hasClient: !!ai,
+      hasModels
     });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err && err.message || err) });
   }
-}
+};
