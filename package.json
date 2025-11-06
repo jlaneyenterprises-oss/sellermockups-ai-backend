@@ -1,11 +1,15 @@
 {
-  "name": "sellermockups-ai-backend",
-  "version": "1.0.0",
-  "type": "module",
-  "dependencies": {
-    "@google/genai": "^0.11.0"
+  "version": 2,
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 60
+    }
   },
-  "engines": {
-    "node": ">=20.x"
-  }
+  "builds": [
+    { "src": "api/**/*.js", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1.js" }
+  ]
 }
