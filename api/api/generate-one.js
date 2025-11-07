@@ -1,5 +1,9 @@
 // api/generate-one.js
-import { GoogleAuth } from "google-auth-library";
+// Works on Vercel (Node 20). Uses Google AI Studio Imagen 3 REST with API key.
+// Requires env var: GOOGLE_AI_API_KEY
+
+const IMAGEN_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/imagegeneration:generate";
 
 export default async function handler(req, res) {
   // CORS
@@ -7,65 +11,77 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Use POST" });
+  if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Use POST" });
 
   try {
-    const { imageUrl, productType } = req.body || {};
-    if (!imageUrl || !productType) {
-      return res.status(400).json({ error: "Missing imageUrl or productType" });
+    const body = await readJson(req);
+
+    const { imageUrl, productType } = body || {};
+    if (!productType) {
+      return res.status(400).json({ ok: false, error: "Missing 'productType'" });
     }
 
-    const projectId = process.env.GOOGLE_PROJECT_ID;
-    const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-    if (!projectId || !saJson) {
-      return res.status(500).json({
-        error: "Missing GOOGLE_PROJECT_ID or GOOGLE_SERVICE_ACCOUNT_JSON"
-      });
+    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ ok: false, error: "Missing GOOGLE_AI_API_KEY" });
     }
 
-    // Auth: use service account JSON directly
-    const credentials = JSON.parse(saJson);
-    const auth = new GoogleAuth({
-      credentials,
-      scopes: ["https://www.googleapis.com/auth/cloud-platform"]
-    });
-    const client = await auth.getClient();
-    const token = await client.getAccessToken();
+    // NOTE: Imagen 3 (text-to-image) does not “overlay” external art by URL.
+    // For now we generate a clean product scene you can later composite with your art.
+    // (We’ll add a Sharp-based compositor next step.)
+    const promptText = [
+      `Ecommerce product mockup of a ${productType}.`,
+      `Clean, well-lit studio, soft shadows, realistic materials, commercial quality.`,
+      imageUrl ? `Inspiration/design reference URL (not overlaid programmatically): ${imageUrl}` : ""
+    ]
+      .filter(Boolean)
+      .join(" ");
 
-    const prompt = `Ecommerce product mockup of a ${productType}.
-Clean, well-lit studio look, soft shadows, realistic materials.
-Overlay the customer's uploaded design from this URL onto the product surface: ${imageUrl}.
-Centered, proportional, no warping, high quality presentation image.`;
-
-    const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagen-3.0:generateImages`;
-
-    const body = {
-      prompt,
-      numberOfImages: 1
-      // size: "1024x1024" // optional
+    const payload = {
+      prompt: { text: promptText },
+      imageGenerationConfig: {
+        numberOfImages: 1,
+        aspectRatio: "1:1"
+      }
     };
 
-    const r = await fetch(url, {
+    const resp = await fetch(`${IMAGEN_URL}?key=${apiKey}`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
 
-    const data = await r.json();
-    if (!r.ok) {
-      return res.status(500).json({ error: data.error?.message || JSON.stringify(data) });
+    const data = await resp.json();
+    if (!resp.ok) {
+      return res
+        .status(500)
+        .json({ ok: false, error: data?.error?.message || JSON.stringify(data) });
     }
 
-    const img = data.images?.[0];
-    const b64 = img?.b64Json || img?.bytesBase64Encoded || img?.imageBytes || null;
-    if (!b64) return res.status(500).json({ error: "No image returned from Imagen 3" });
+    const b64 =
+      data?.images?.[0]?.byteData ||
+      data?.images?.[0]?.image?.bytesBase64Encoded ||
+      null;
 
-    res.status(200).json({ ok: true, dataUri: `data:image/png;base64,${b64}` });
+    if (!b64) {
+      return res.status(502).json({ ok: false, error: "No image returned from Imagen 3" });
+    }
+
+    return res.status(200).json({ ok: true, dataUri: `data:image/png;base64,${b64}` });
   } catch (err) {
-    console.error("❌ Imagen error:", err);
-    res.status(500).json({ error: String(err?.message || err) });
+    console.error("❌ generate-one error:", err);
+    return res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+}
+
+// Read JSON body safely on Vercel's Node serverless
+async function readJson(req) {
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  const raw = Buffer.concat(chunks).toString("utf8") || "{}";
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
   }
 }
