@@ -1,5 +1,5 @@
 // api/vertex-capabilities.js
-import { getVertexModel } from "../lib/vertex.js";
+import { getVertexModel } from "../../lib/vertex.js";
 
 export default async function handler(req, res) {
   try {
