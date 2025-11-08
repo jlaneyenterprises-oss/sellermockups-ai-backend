@@ -1,1 +1,1 @@
-trigger 20255
+trigger 20255 6
