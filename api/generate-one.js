@@ -14,6 +14,7 @@ export default async function handler(req, res) {
     }
 
     const projectId = process.env.GOOGLE_PROJECT_ID;
+    const location = process.env.GOOGLE_LOCATION || "us-central1";
     const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (!projectId || !saJson) {
       return res.status(500).json({
@@ -34,7 +35,7 @@ Clean, well-lit studio look, soft shadows, realistic materials.
 Overlay the customer's uploaded design from this URL onto the product surface: ${imageUrl}.
 Centered, proportional, no warping, high quality presentation image.`;
 
-    const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagen-3.0:generateImages`;
+    const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/imagen-3.0:generateImages`;
 
     const r = await fetch(url, {
       method: "POST",
