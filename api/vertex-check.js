@@ -1,28 +1,60 @@
-// api/vertex-check.js
-export default async function handler(_req, res) {
+import { GoogleAuth } from "google-auth-library";
+
+export default async function handler(req, res) {
   try {
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ ok: false, error: "Missing GOOGLE_AI_API_KEY" });
+    const project = process.env.GOOGLE_PROJECT_ID;
+    const location = process.env.GOOGLE_LOCATION || "us-central1";
+    const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+
+    if (!project || !saJson) {
+      return res.status(200).json({
+        ok: false,
+        provider: "google-ai-studio",
+        model: "imagen-3",
+        verified: false,
+        note: "Missing GOOGLE_PROJECT_ID or GOOGLE_SERVICE_ACCOUNT_JSON"
+      });
     }
 
-    // quick call to verify the API key works (no image generated)
-    const testUrl =
-      "https://generativelanguage.googleapis.com/v1beta/models/imagegeneration?key=" + apiKey;
+    const credentials = JSON.parse(saJson);
+    const auth = new GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/cloud-platform"]
+    });
+    const client = await auth.getClient();
+    const token = await client.getAccessToken();
 
-    const resp = await fetch(testUrl, { method: "GET" });
-    const ok = resp.ok;
+    // Probe the published model resource (simple GET)
+    const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/imagen-3.0`;
 
-    res.status(200).json({
-      ok,
+    const r = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (r.ok) {
+      return res.status(200).json({
+        ok: true,
+        provider: "google-ai-studio",
+        model: "imagen-3",
+        verified: true
+      });
+    }
+
+    const text = await r.text();
+    return res.status(200).json({
+      ok: false,
       provider: "google-ai-studio",
       model: "imagen-3",
-      verified: ok,
-      note: ok
-        ? "AI Studio Imagen 3 endpoint reachable"
-        : "API key or endpoint check failed"
+      verified: false,
+      note: text
     });
   } catch (err) {
-    res.status(500).json({ ok: false, error: String(err?.message || err) });
+    return res.status(200).json({
+      ok: false,
+      provider: "google-ai-studio",
+      model: "imagen-3",
+      verified: false,
+      note: String(err?.message || err)
+    });
   }
 }
